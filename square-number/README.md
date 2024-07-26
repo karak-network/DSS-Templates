@@ -23,7 +23,9 @@ It provides a straightforward, clear-cut case that showcases how users, aggregat
 - aggregator
 
 ### Calling the DSS
-When the DSS is deployed you can check the address in the `contracts/contract-addresses.json` file. Using those addresses you can make the following cast call to submit a task request for squaring a number:
+When the DSS is deployed you can check the address in the `contracts/contract-addresses.json` file. 
+
+Using those addresses you can make the following cast call to submit a task request for squaring a number:
 ```bash 
 cast send 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE "generateTaskRequest((uint256))" "(5)" --private-key 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d --rpc-url http://localhost:8545
 ```
@@ -50,7 +52,7 @@ Upon receiving the task request, each operator performs the computation to squar
 
 The aggregator collects all responses from the operators and verifies their signatures to confirm that the responses are genuinely from the registered operators. Once verified, the aggregator calculates the median of all the received responses. The median is chosen to mitigate the impact of any outliers or erroneous calculations.
 
-Finally, the aggregator posts the __**stake based median**__ value of the squared number to the DSS contract. This final step completes the task request cycle, ensuring that the user receives a reliable and accurate result, backed by the collective validation of multiple operators.
+Finally, the aggregator posts the __stake based median__ value of the squared number to the DSS contract. This final step completes the task request cycle, ensuring that the user receives a reliable and accurate result, backed by the collective validation of multiple operators.
 
 #### Slashing Mechanism
 Although the slashing logic is not yet implemented, it is designed to allow the DSS to penalize any operator who fails to meet performance expectations. If an operator does not perform as required, the DSS has the authority to slash a portion of that operator's staked tokens. This potential for slashing serves as a powerful incentive for operators to maintain integrity and deliver consistent, high-quality performance.
