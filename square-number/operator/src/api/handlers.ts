@@ -27,7 +27,7 @@ export async function postRequest<T>(url: string, data: any): Promise<T> {
 
 export async function getRequest<T>(url: string): Promise<T> {
 	const response = await fetch(url, {
-		method: "POST",
+		method: "GET",
 		headers: { "Content-Type": "application/json" },
 	});
 	const responseJson = await response.json();

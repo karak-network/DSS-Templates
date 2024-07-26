@@ -36,7 +36,6 @@ async function isRegisteredWithAggregator(aggregatorURL: string, operatorPubkey:
 		logger.info(`operatorService :: isRegisteredWithAggregator :: got response ${isRegistered}`);
 		return isRegistered;
 	} catch (error) {
-		console.log(error);
 		logger.error("operatorService :: isOperatorRegistered :: api request failed", error);
 		return false;
 	}

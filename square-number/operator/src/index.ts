@@ -9,7 +9,7 @@ const server = app.listen(env.PORT, () => {
 	logger.info(`Server (${NODE_ENV}) running on port ${operatorUrl}`);
 
 	// Start background services
-	startServices(env.AGGREGATOR_URL, client.account.address, operatorUrl);
+	startServices(env.AGGREGATOR_URL, client.account.address, env.DOMAIN_URL);
 });
 
 const onCloseSignal = () => {

@@ -9,6 +9,7 @@ export const env = cleanEnv(process.env, {
 	HOST: host({ devDefault: testOnly("localhost") }),
 	PORT: port(),
 	RPC_URL: str(),
+	DOMAIN_URL: str(),
 
 	// CORS Config
 	CORS_ORIGIN: str(),

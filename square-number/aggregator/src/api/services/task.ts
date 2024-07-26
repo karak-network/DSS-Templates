@@ -42,13 +42,15 @@ async function sendTaskToAllOperators(task: Task): Promise<number> {
 	let operatorResponses: TaskResponse[] = await Promise.all(
 		registeredOperators.map(async (operator) => {
 			try {
-				const response = await fetch(operator.url + "/operator/requestTask", {
+				const response = await fetch(operator.url + "/task", {
 					method: "POST",
 					body: JSON.stringify(task),
 					headers: { "Content-Type": "application/json" },
 				});
 				const responseJson = await response.json();
 				const serviceResponse: any = (responseJson as ServiceResponse<TaskResponse>).responseObject;
+				logger.info("HERE HERE HERE");
+				logger.info(JSON.stringify(serviceResponse));
 				return {
 					completedTask: serviceResponse.completedTask,
 					publicKey: serviceResponse.publicKey,

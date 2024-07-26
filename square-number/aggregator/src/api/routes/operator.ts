@@ -41,8 +41,8 @@ operatorRegistry.registerPath({
 
 operatorRouter.get("/", async (req: Request, res: Response) => {
 	try {
-		const isRegistered = isOperatorRegistered(req.query.address as Operator);
-		handleServiceResponse(ServiceResponse.success(`Operator ${req.body} is registered: ${isRegistered}`, isRegistered), res);
+		const isRegistered = isOperatorRegistered(req.query.address);
+		handleServiceResponse(ServiceResponse.success(`Operator ${req.query.address} is registered: ${isRegistered}`, isRegistered), res);
 	} catch (error) {
 		handleServiceResponse(ServiceResponse.failure(`router :: GET :: /operator :: failed with error ${error}`, null), res);
 	}

@@ -13,9 +13,9 @@ export async function registerOperator(operator: Operator) {
 	}
 }
 
-export function isOperatorRegistered(operator: Operator) {
+export function isOperatorRegistered(operatorPubKey: string) {
 	const isRegistered = registeredOperators.some((op) => {
-		return operator.publicKey == op.publicKey;
+		return operatorPubKey == op.publicKey;
 	});
 	return isRegistered;
 }
