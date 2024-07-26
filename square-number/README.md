@@ -22,6 +22,18 @@ It provides a straightforward, clear-cut case that showcases how users, aggregat
 - operator-2
 - aggregator
 
+### Calling the DSS
+When the DSS is deployed you can check the address in the `contracts/contract-addresses.json` file. Using those addresses you can make the following cast call to submit a task request for squaring a number:
+```bash 
+cast send 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE "generateTaskRequest((uint256))" "(5)" --private-key 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d --rpc-url http://localhost:8545
+```
+
+Wait for about 10-20 seconds to allow the operators to pick up and finish the task and then using a cast call you can check the result as follows:
+```bash
+cast call 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE "getTaskResponse((uint256))(uint256)" "(5)" --rpc-url http://localhost:8545
+```
+
+
 ## Architecture
 ![Square Number DSS](illustrations/architecture.svg)
 
