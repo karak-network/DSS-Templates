@@ -34,7 +34,7 @@ async function watchForTaskEvents() {
 			await writeBlockNumberToFile(env.CONTRACTS_JSON, blockNumber + 1);
 		});
 	} else {
-		logger.error("task :: watchForTaskEvents :: no operators are registered");
+		logger.warn("task :: watchForTaskEvents :: no operators are registered");
 	}
 }
 
