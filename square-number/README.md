@@ -35,7 +35,6 @@ Wait for about 10-20 seconds to allow the operators to pick up and finish the ta
 cast call 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE "getTaskResponse((uint256))(uint256)" "(5)" --rpc-url http://localhost:8545
 ```
 
-
 ## Architecture
 ![Square Number DSS](illustrations/architecture.svg)
 
