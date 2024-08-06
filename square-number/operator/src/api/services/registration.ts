@@ -3,6 +3,7 @@ import { Operator } from "@/api/models/Operator";
 import { env } from "@/config";
 import { logger } from "@/server";
 import { coreContract, dssContract, dssContractAddress } from "@/utils/contract/contract";
+import {pm} from "@/utils/prometheus";
 
 export async function registerOperator(aggregatorURL: string, operatorPubkey: string, operatorUrl: string) {
 	const registeredInDSS = await isRegisteredInDSS(operatorPubkey);
@@ -10,6 +11,8 @@ export async function registerOperator(aggregatorURL: string, operatorPubkey: st
 
 	setInterval(async () => {
 		await registerInDSSAndAggregator(aggregatorURL, operatorPubkey, operatorUrl);
+		pm.testCounter.inc(1);
+		pm.testGauge.set({ code: 200 }, 5);
 	}, env.HEARTBEAT);
 }
 

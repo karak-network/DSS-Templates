@@ -9,6 +9,7 @@ import { openAPIRouter } from "./api/docs/openAPIRouter";
 import errorHandler from "@/middleware/errorHandler";
 import rateLimiter from "@/middleware/rateLimiter";
 import requestLogger from "@/middleware/requestLogger";
+import {pm} from "@/utils/prometheus";
 
 const logger = pino({ name: "server start" });
 const app: Express = express();
@@ -25,6 +26,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Request logging
 app.use(requestLogger);
+
+pm.addMetricRoute(app);
 
 // Routes
 mountRoutes(app);
