@@ -1,23 +1,43 @@
 import * as PromoClient from 'prom-client';
 import {Router} from "express";
-import {Counter, Gauge} from "prom-client";
+import {Counter} from "prom-client";
 
 class Prometheus {
     public collectDefaultMetrics: typeof PromoClient.collectDefaultMetrics;
-    public testCounter: Counter;
-    public testGauge: Gauge;
-
+    public isChainRegistered: Counter;
+    public isRegisteredToAggregator: Counter;
+    public taskReceived: Counter;
+    public taskCompleted: Counter;
+    public taskErrored: Counter;
     constructor() {
         this.collectDefaultMetrics = PromoClient.collectDefaultMetrics;
-        this.testCounter= new Counter({
-            name: 'test_counter',
-            help: 'Example of a counter',
+        this.isChainRegistered= new Counter({
+            name: 'chain_registration_success',
+            help: 'Boolean flag to find if the operator is registered to contract or not',
             labelNames: ['code'],
         });
 
-        this.testGauge =  new Gauge({
-            name: 'test_gauge',
-            help: 'Example of a gauge',
+        this.isRegisteredToAggregator= new Counter({
+            name: 'aggregator_registration_success',
+            help: 'Boolean flag to find if the operator is registered to aggregator server or not',
+            labelNames: ['code'],
+        });
+
+        this.taskReceived = new Counter({
+            name: 'task_received',
+            help: 'Counter for task received successfully',
+            labelNames: ['code'],
+        });
+
+        this.taskErrored = new Counter({
+            name: 'task_errored',
+            help: 'Counter for task errored in api call',
+            labelNames: ['code'],
+        });
+
+        this.taskCompleted = new Counter({
+            name: 'task_completed',
+            help: 'Counter for successful response for api call for sending task',
             labelNames: ['code'],
         });
 

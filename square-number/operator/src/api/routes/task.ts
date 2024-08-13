@@ -6,6 +6,7 @@ import { createApiResponse } from "@/api/docs/openAPIResponseBuilders";
 import { handleServiceResponse } from "@/api/handlers";
 import { ServiceResponse } from "@/api/models";
 import { Task, TaskResponseSchema, TaskRequest } from "@/api/models/Task";
+import {pm} from "@/utils/prometheus";
 
 export const taskPath = "/task";
 export const taskRegistry = new OpenAPIRegistry();
@@ -23,8 +24,11 @@ taskRouter.post("/", async (req: Request, res: Response) => {
 	try {
 		const task: Task = req.body;
 		const taskResponse = await handleTask(task);
+		pm.taskReceived.inc(1);
 		handleServiceResponse(ServiceResponse.success("Task completed successfully", taskResponse), res);
+		pm.taskCompleted.inc(1);
 	} catch (error) {
+		pm.taskErrored.inc(1);
 		handleServiceResponse(ServiceResponse.failure(`router :: POST :: /task :: failed with error ${error}`, null), res);
 	}
 });

@@ -8,17 +8,23 @@ import {pm} from "@/utils/prometheus";
 export async function registerOperator(aggregatorURL: string, operatorPubkey: string, operatorUrl: string) {
 	const registeredInDSS = await isRegisteredInDSS(operatorPubkey);
 	if (!registeredInDSS) await registerInDSS();
+	else {
+		pm.isChainRegistered.reset();
+		pm.isChainRegistered.inc(1)
+	}
 
 	setInterval(async () => {
 		await registerInDSSAndAggregator(aggregatorURL, operatorPubkey, operatorUrl);
-		pm.testCounter.inc(1);
-		pm.testGauge.set({ code: 200 }, 5);
 	}, env.HEARTBEAT);
 }
 
 async function registerInDSSAndAggregator(aggregatorURL: string, operatorPubkey: string, operatorUrl: string) {
 	const registeredWithAggregator = await isRegisteredWithAggregator(aggregatorURL, operatorPubkey);
 	if (!registeredWithAggregator) await registerOperatorWithAggregator(aggregatorURL, operatorPubkey, operatorUrl);
+	else {
+		pm.isRegisteredToAggregator.reset();
+		pm.isRegisteredToAggregator.inc(1)
+	}
 }
 
 async function isRegisteredInDSS(operatorAddress: string): Promise<boolean> {
@@ -30,6 +36,8 @@ async function isRegisteredInDSS(operatorAddress: string): Promise<boolean> {
 
 async function registerInDSS() {
 	await coreContract.write.registerOperatorToDSS([dssContractAddress, "0x"]);
+	pm.isChainRegistered.reset();
+	pm.isChainRegistered.inc(1)
 	logger.info("operatorService :: registerInDSS :: operator registered successfully in the DSS");
 }
 
@@ -48,6 +56,8 @@ async function registerOperatorWithAggregator(aggregatorURL: string, operatorPub
 	const operator: Operator = { publicKey: operatorPubkey, url: operatorUrl };
 	try {
 		await postRequest(aggregatorURL + "/operator", operator);
+		pm.isRegisteredToAggregator.reset();
+		pm.isRegisteredToAggregator.inc(1)
 		logger.info(`operatorService :: registerOperatorWithAggregator :: successfully registered operator`);
 	} catch (e) {
 		logger.error(`operatorService ::registerWithAggregator :: api request failed`);
