@@ -13,13 +13,13 @@ class Prometheus {
         this.collectDefaultMetrics = collectDefaultMetrics;
         this.isRegisteredOnChain= new Counter({
             name: 'chain_registration_success',
-            help: 'Boolean flag to find if the operator is registered to contract or not',
+            help: 'Boolean flag indicating if operator is registered to DSS contract',
             labelNames: ['code'],
         });
 
         this.isRegisteredToAggregator= new Counter({
             name: 'aggregator_registration_success',
-            help: 'Boolean flag indicating if operator is registered to DSS contract',
+            help: 'Boolean flag indicating if operator is registered to Aggregator',
         });
 
         this.taskReceived = new Counter({
