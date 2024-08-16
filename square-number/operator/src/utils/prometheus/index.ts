@@ -1,17 +1,17 @@
-import * as PromoClient from 'prom-client';
+import { Counter, collectDefaultMetrics, register } from 'prom-client';
 import {Router} from "express";
-import {Counter} from "prom-client";
+import {logger} from "@/server";
 
 class Prometheus {
-    public collectDefaultMetrics: typeof PromoClient.collectDefaultMetrics;
-    public isChainRegistered: Counter;
+    public collectDefaultMetrics: typeof collectDefaultMetrics;
+    public isRegisteredOnChain: Counter;
     public isRegisteredToAggregator: Counter;
     public taskReceived: Counter;
     public taskCompleted: Counter;
     public taskErrored: Counter;
     constructor() {
-        this.collectDefaultMetrics = PromoClient.collectDefaultMetrics;
-        this.isChainRegistered= new Counter({
+        this.collectDefaultMetrics = collectDefaultMetrics;
+        this.isRegisteredOnChain= new Counter({
             name: 'chain_registration_success',
             help: 'Boolean flag to find if the operator is registered to contract or not',
             labelNames: ['code'],
@@ -19,26 +19,22 @@ class Prometheus {
 
         this.isRegisteredToAggregator= new Counter({
             name: 'aggregator_registration_success',
-            help: 'Boolean flag to find if the operator is registered to aggregator server or not',
-            labelNames: ['code'],
+            help: 'Boolean flag indicating if operator is registered to DSS contract',
         });
 
         this.taskReceived = new Counter({
             name: 'task_received',
             help: 'Counter for task received successfully',
-            labelNames: ['code'],
         });
 
         this.taskErrored = new Counter({
             name: 'task_errored',
-            help: 'Counter for task errored in api call',
-            labelNames: ['code'],
+            help: 'Counter for task that errored',
         });
 
         this.taskCompleted = new Counter({
             name: 'task_completed',
-            help: 'Counter for successful response for api call for sending task',
-            labelNames: ['code'],
+            help: 'Counter of successful task completions',
         });
 
     }
@@ -47,10 +43,11 @@ class Prometheus {
         this.collectDefaultMetrics();
         app.get('/metrics', async (req, res) => {
             try {
-                res.set('Content-Type', PromoClient.register.contentType);
-                res.end(await PromoClient.register.metrics());
+                res.set('Content-Type', register.contentType);
+                res.end(await register.metrics());
             } catch (ex) {
-                res.status(500).end(ex);
+                logger.error('Error fetching metrics:', ex);
+                res.status(500).end('Error fetching metrics');
             }
         });
     }

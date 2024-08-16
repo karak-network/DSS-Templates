@@ -9,8 +9,8 @@ export async function registerOperator(aggregatorURL: string, operatorPubkey: st
 	const registeredInDSS = await isRegisteredInDSS(operatorPubkey);
 	if (!registeredInDSS) await registerInDSS();
 	else {
-		pm.isChainRegistered.reset();
-		pm.isChainRegistered.inc(1)
+		pm.isRegisteredOnChain.reset();
+		pm.isRegisteredOnChain.inc(1)
 	}
 
 	setInterval(async () => {
@@ -36,8 +36,8 @@ async function isRegisteredInDSS(operatorAddress: string): Promise<boolean> {
 
 async function registerInDSS() {
 	await coreContract.write.registerOperatorToDSS([dssContractAddress, "0x"]);
-	pm.isChainRegistered.reset();
-	pm.isChainRegistered.inc(1)
+	pm.isRegisteredOnChain.reset();
+	pm.isRegisteredOnChain.inc(1)
 	logger.info("operatorService :: registerInDSS :: operator registered successfully in the DSS");
 }
 
