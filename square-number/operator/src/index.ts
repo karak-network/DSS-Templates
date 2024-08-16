@@ -3,6 +3,8 @@ import { env } from "@/config";
 import { app, logger } from "@/server";
 import { client } from "@/utils/contract/contract";
 
+
+
 const server = app.listen(env.PORT, () => {
 	const { NODE_ENV, HOST, PORT } = env;
 	const operatorUrl = `http://${HOST}:${PORT}`;
