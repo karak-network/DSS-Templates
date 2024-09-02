@@ -1,19 +1,18 @@
-FROM node:22.5-slim
+FROM rust:1.80.1-slim AS builder
 
-# Create app directory
 WORKDIR /app
 
-# Copy package.json and yarn.lock
-COPY package.json ./
-
-# Install app dependencies
-RUN yarn
-
-# Bundle app source
 COPY . .
 
-# Expose port 8080
-EXPOSE 8080
+WORKDIR /app/operator
+RUN apt-get update && apt-get install -y pkg-config libssl-dev
+RUN cargo build --release --bin square-number-dss-operator
 
-# Start the app
-CMD yarn dev
+FROM debian:bookworm-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y libssl3 && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/square-number-dss-operator /app/square-number-dss-operator
+
+ENTRYPOINT ["/app/square-number-dss-operator"]

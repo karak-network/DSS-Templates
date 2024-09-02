@@ -77,16 +77,12 @@ contract DeployDSSAndLocal is Script {
         updateStakeInDSS(coreProxy, operatorERC20Vault, dss);
         vm.stopBroadcast();
 
-        string memory contractAddressesJson = string.concat(
-            '{"squareNumberDSS":"',
-            vm.toString(address(dss)),
-            '", "core":"',
-            vm.toString(address(coreProxy)),
-            '", "blockNumber": 0',
+        string memory blockNumberStore = string.concat(
+            '{"block_number": 0',
             "}"
         );
 
-        vm.writeFile("./contract-addresses.json", contractAddressesJson);
+        vm.writeFile("./block-number-store.json", blockNumberStore);
     }
 
     function deployImpls() public returns (address coreImpl, address vaultImpl, address slashingHandlerImpl) {
