@@ -21,7 +21,8 @@ async fn main() -> eyre::Result<()> {
         .init();
 
     let governor_config = Arc::new(GovernorConfig::default());
-    let aggregator_app = square_number_dss_operator::routes(config.private_key.clone());
+    let aggregator_app =
+        square_number_dss_operator::routes(config.bls_keypair.clone(), config.private_key.clone());
     let app = aggregator_app
         .layer(
             TraceLayer::new_for_http()

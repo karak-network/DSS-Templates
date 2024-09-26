@@ -1,5 +1,7 @@
 use alloy::{primitives::Address, signers::local::PrivateKeySigner};
 use axum::{routing::get, Router};
+use base64::Engine;
+use karak_rs::kms::keypair::bn254::Keypair;
 use serde::Deserialize;
 use std::{net::IpAddr, str::FromStr};
 use thiserror::Error;
@@ -23,6 +25,20 @@ pub struct Config {
     pub square_number_dss_address: Address,
     pub core_address: Address,
     pub heartbeat: u64,
+    #[serde(deserialize_with = "deserialize_bls_keypair")]
+    pub bls_keypair: Keypair,
+}
+
+fn deserialize_bls_keypair<'de, D>(deserializer: D) -> Result<Keypair, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let base64_str: String = Deserialize::deserialize(deserializer)?;
+    let decoded_bytes = base64::engine::general_purpose::STANDARD
+        .decode(&base64_str)
+        .map_err(|e| serde::de::Error::custom(format!("Base64 decoding error: {}", e)))?;
+
+    Keypair::from_bytes(&decoded_bytes).map_err(serde::de::Error::custom)
 }
 
 fn deserialize_private_key<'de, D>(deserializer: D) -> Result<PrivateKeySigner, D::Error>
@@ -67,8 +83,8 @@ pub enum TaskError {
     SigningError(#[from] alloy::signers::Error),
 }
 
-pub fn routes(wallet: PrivateKeySigner) -> Router {
+pub fn routes(keypair: karak_rs::kms::keypair::bn254::Keypair, wallet: PrivateKeySigner) -> Router {
     Router::new()
         .route("/health", get(health::health_check))
-        .nest("/operator", operator::operator_router(wallet))
+        .nest("/operator", operator::operator_router(keypair, wallet))
 }

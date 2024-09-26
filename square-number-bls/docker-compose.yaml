@@ -94,15 +94,15 @@ services:
             - COMMON_RATE_LIMIT_WINDOW_MS=1000
             - COMMON_RATE_LIMIT_MAX_REQUESTS=10000
             - AGGREGATOR_URL=http://aggregator:3000
-            - HEARTBEAT=1000
-            - PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+            - HEARTBEAT=5000
+            - PRIVATE_KEY=0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a
             - RUST_LOG=info
             - SQUARE_NUMBER_DSS_ADDRESS=0x68B1D87F95878fE05B998F19b66F4baba5De1aed
             - CORE_ADDRESS=0x94099942864EA81cCF197E9D71ac53310b1468D8
+            - BLS_KEYPAIR=xyEvqRzNolRTApqFbBGkD+pdeueMDr5EIi+sb+2BZyM=
         depends_on:
             aggregator:
                 condition: service_healthy
-
     operator-2:
         image: square-number-dss-operator
         build:
@@ -118,11 +118,12 @@ services:
             - COMMON_RATE_LIMIT_WINDOW_MS=1000
             - COMMON_RATE_LIMIT_MAX_REQUESTS=10000
             - AGGREGATOR_URL=http://aggregator:3000
-            - HEARTBEAT=1000
-            - PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+            - HEARTBEAT=5000
+            - PRIVATE_KEY=0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6
             - RUST_LOG=info
             - SQUARE_NUMBER_DSS_ADDRESS=0x68B1D87F95878fE05B998F19b66F4baba5De1aed
             - CORE_ADDRESS=0x94099942864EA81cCF197E9D71ac53310b1468D8
+            - BLS_KEYPAIR=OlG7qeqEnGXAVjgxj38XRk9yB3Vd9mbaoX5bckostQg=
         depends_on:
             aggregator:
                 condition: service_healthy

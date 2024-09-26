@@ -38,26 +38,25 @@ cast call 0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE "getTaskResponse((uint256))
 ## Architecture
 ![Square Number DSS](illustrations/architecture.svg)
 
-- **Aggregator**: Acts as a trusted central entity within the DSS, monitoring task requests emitted by the DSS contract. It distributes these requests to all registered operators.
+In order to significantly reduce trust assumptions on the aggregator, an alternative architecture can be implemented using BLS signatures instead of individual ECDSA signatures. BLS signatures offer the capability of aggregation, allowing the aggregator to consolidate signatures from a majority of operators who present a consistent response.
 
-- **Operators**: Perform computational tasks upon receiving requests from the aggregator. They calculate the square of the number, sign the result, and send it back to the aggregator for validation.
+**BLS Signatures**
 
-#### User Task Request
-A user initiates the process by generating a task request to square a number. This request is made through a contract call to the DSS contract, effectively registering the task within the system.
+Instead of each operator using individual ECDSA signatures, they generate BLS signatures for their respective responses. BLS signatures can be aggregated by the aggregator into a single combined signature.
+Aggregator's Role
 
-The aggregator, functioning as an offline entity within the DSS, acts as a trusted central figure. Its primary role is to monitor the DSS contract for any new task requests. As soon as a task request is detected, the aggregator disseminates this request to all operators registered in the DSS.
+The aggregator, as a central entity within the DSS, collects responses from operators after they calculate the squared number. Instead of simply forwarding individual responses, the aggregator aggregates the BLS signatures of the majority of operators who agree on the computed result.
 
-Upon receiving the task request, each operator performs the computation to square the given number. After calculating the square, the operator signs the result and sends it back to the aggregator. This ensures that each response is authenticated and traceable to its origin.
+**Verification Process**
 
-The aggregator collects all responses from the operators and verifies their signatures to confirm that the responses are genuinely from the registered operators. Once verified, the aggregator calculates the median of all the received responses. The median is chosen to mitigate the impact of any outliers or erroneous calculations.
+Upon receiving the aggregated BLS signature from the aggregator, the on-chain DSS contract performs verification. It checks whether the aggregated signature represents a stake-weighted majority of operators. This verification ensures that the response aligns with the consensus of operators holding the majority stake.
 
-Finally, the aggregator posts the __stake based median__ value of the squared number to the DSS contract. This final step completes the task request cycle, ensuring that the user receives a reliable and accurate result, backed by the collective validation of multiple operators.
+**Outcome**
 
-#### Slashing Mechanism
-Although the slashing logic is not yet implemented, it is designed to allow the DSS to penalize any operator who fails to meet performance expectations. If an operator does not perform as required, the DSS has the authority to slash a portion of that operator's staked tokens. This potential for slashing serves as a powerful incentive for operators to maintain integrity and deliver consistent, high-quality performance.
+If the aggregated BLS signature passes verification against the stake-weighted majority, the DSS contract accepts the response. This method reduces dependence on the aggregator for the accuracy of submitted data, as the consensus of stakeholders holds more sway in determining the validity of the response.
 
-#### Ensuring Integrity and Reliability
-By utilizing this architecture, the DSS maintains a robust and secure method for processing computational tasks, reinforced by the economic security provided through Karak Restaking. The threat of slashing staked tokens for poor performance incentivizes operators to maintain high standards of integrity and reliability.
+
+Implementing BLS signatures in this manner enhances the integrity and reliability of the DSS process. It leverages stake-weighted consensus among operators to minimize the risk of erroneous or manipulated responses by the aggregator, thereby fortifying the overall trustworthiness of the system.
 
 ## Flow Diagram
 The following flow diagram should be able to give you a brief overview of the entire working of the square number DSS.

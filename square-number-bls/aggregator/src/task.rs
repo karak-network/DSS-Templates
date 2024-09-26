@@ -6,26 +6,32 @@ use std::{
 };
 
 use alloy::{
-    primitives::{Address, Uint, U256},
+    primitives::{keccak256, Address, Uint, U256},
     providers::Provider,
     rpc::types::{BlockNumberOrTag, Filter},
-    signers::Signature,
-    sol_types::SolEvent,
+    sol_types::{SolEvent, SolValue},
     transports::http::Client,
 };
+use ark_ff::PrimeField;
 use chrono::{DateTime, Utc};
 use eyre::Result;
+use karak_rs::{
+    bls::{keypair_signer::verify_signature, signature::Signature},
+    kms::keypair::bn254::{
+        algebra::{g1::G1Point, g2::G2Point},
+        PublicKey,
+    },
+};
 use serde::{Deserialize, Serialize};
 use tokio::{
     signal,
     time::{self},
 };
 use tracing::{error, info};
-use url::Url;
 
 use crate::{
     aggregator::{Operator, OperatorState},
-    contract::{ContractManager, SquareNumberDSS, VaultContract},
+    contract::{ContractManager, SquareNumberDSS},
     Config, TaskError,
 };
 
@@ -51,6 +57,7 @@ pub struct CompletedTask {
 pub struct TaskResponse {
     pub completed_task: CompletedTask,
     pub public_key: Address,
+    pub bls_pubkey: PublicKey,
     pub signature: Signature,
 }
 
@@ -63,35 +70,58 @@ pub struct TaskService {
     contract_manager: ContractManager,
     operator_state: Arc<OperatorState>,
     square_number_address: Address,
-    dss_address: Address,
     block_number_store: String,
     block_number: u64,
-    rpc_url: Url,
-    private_key: alloy::signers::local::PrivateKeySigner,
     client: Client,
     heartbeat_interval: Duration,
+}
+
+impl From<G1Point> for SquareNumberDSS::G1Point {
+    fn from(karak_point: G1Point) -> Self {
+        let x = karak_point.0.x.into_bigint().0;
+        let y = karak_point.0.y.into_bigint().0;
+
+        let x_uint = Uint::<256, 4>::from(U256::from_limbs(x));
+        let y_uint = Uint::<256, 4>::from(U256::from_limbs(y));
+
+        SquareNumberDSS::G1Point {
+            X: x_uint,
+            Y: y_uint,
+        }
+    }
+}
+
+impl From<G2Point> for SquareNumberDSS::G2Point {
+    fn from(karak_point: G2Point) -> Self {
+        let x = karak_point.0.x;
+        let y = karak_point.0.y;
+
+        let x0_uint = Uint::<256, 4>::from(U256::from_limbs(x.c0.into_bigint().0));
+        let x1_uint = Uint::<256, 4>::from(U256::from_limbs(x.c1.into_bigint().0));
+        let y0_uint = Uint::<256, 4>::from(U256::from_limbs(y.c0.into_bigint().0));
+        let y1_uint = Uint::<256, 4>::from(U256::from_limbs(y.c1.into_bigint().0));
+
+        SquareNumberDSS::G2Point {
+            X: [x1_uint, x0_uint], // Reversed x coordinates
+            Y: [y1_uint, y0_uint], // Reversed y coordinates
+        }
+    }
 }
 
 impl TaskService {
     pub fn new(operator_state: Arc<OperatorState>, config: Config) -> Result<Self> {
         let contract_manager = ContractManager::new(&config)?;
         let square_number_address = config.square_number_dss_address;
-        let dss_address = config.square_number_dss_address;
         let block_number_store = config.block_number_store.clone();
         let block_number: u64 = config.load_block_number()?;
-        let rpc_url = config.get_rpc_url()?;
-        let private_key = config.get_private_key()?;
         let heartbeat_interval = Duration::from_millis(config.heartbeat);
         let client = Client::new();
         Ok(Self {
             contract_manager,
             operator_state,
             square_number_address,
-            dss_address,
             block_number_store,
             block_number,
-            rpc_url,
-            private_key,
             client,
             heartbeat_interval,
         })
@@ -154,17 +184,29 @@ impl TaskService {
                 let task_request = TaskRequest { task, block_number };
 
                 if !operators.is_empty() {
-                    let response = self
-                        .send_task_to_all_operators(task_request.task, &operators)
+                    let (response, non_signing_operators, agg_pubkey, agg_sign) = self
+                        .send_task_to_all_operators_and_aggregate(task_request.task, &operators)
                         .await?;
 
                     let task_response = SquareNumberDSS::TaskResponse { response };
                     let dss_task_request = SquareNumberDSS::TaskRequest {
                         value: task_request.task.value,
                     };
+
+                    let non_signing_operators_converted = non_signing_operators
+                        .into_iter()
+                        .map(SquareNumberDSS::G1Point::from)
+                        .collect();
+
                     match self
                         .contract_manager
-                        .submit_task_response(dss_task_request, task_response)
+                        .submit_task_response(
+                            dss_task_request,
+                            task_response,
+                            non_signing_operators_converted,
+                            agg_pubkey.into(),
+                            agg_sign.into(),
+                        )
                         .await
                     {
                         Ok(tx) => info!("Transaction sent: {:?}", tx),
@@ -184,70 +226,28 @@ impl TaskService {
         Ok(())
     }
 
-    async fn get_operator_stake_normalized_eth(
-        &self,
-        operator: Address,
-    ) -> Result<U256, TaskError> {
-        let vaults = self
-            .contract_manager
-            .fetch_vaults_staked_in_dss(operator, self.dss_address)
-            .await?;
-
-        let mut stake = Uint::from(0u64);
-
-        for vault in vaults {
-            let total_assets =
-                VaultContract::new(self.rpc_url.clone(), self.private_key.clone(), vault)?
-                    .vault_instance
-                    .totalAssets()
-                    .call()
-                    .await
-                    .map_err(|_| TaskError::ContractCallError)?
-                    ._0;
-
-            // TODO: Normalize total assets to ETH
-            stake += total_assets;
-        }
-
-        Ok(stake)
+    fn aggregate_points_g1(&self, point_one: G1Point, point_two: G1Point) -> G1Point {
+        point_one + point_two
     }
 
-    async fn get_operator_stake_mapping(
-        &self,
-        operators: Vec<Address>,
-        min_acceptable_stake: U256,
-    ) -> Result<(HashMap<Address, U256>, U256), TaskError> {
-        let mut stake_mapping = HashMap::new();
-        let mut total_stake = Uint::from(0u64);
-
-        for operator in operators {
-            let stake = self
-                .get_operator_stake_normalized_eth(operator)
-                .await
-                .map_err(TaskError::from)?;
-
-            if stake > min_acceptable_stake {
-                stake_mapping.insert(operator, stake);
-                total_stake += stake;
-            }
-        }
-
-        Ok((stake_mapping, total_stake))
+    fn aggregate_points_g2(&self, point_one: G2Point, point_two: G2Point) -> G2Point {
+        point_one + point_two
     }
 
-    async fn send_task_to_all_operators(
+    async fn send_task_to_all_operators_and_aggregate(
         &self,
         task: Task,
         operators: &HashSet<Operator>,
-    ) -> Result<U256, TaskError> {
+    ) -> Result<(U256, Vec<G1Point>, G2Point, G1Point), TaskError> {
         let mut operator_responses = Vec::new();
+        let mut signing_operators = HashSet::new();
 
+        // Collect responses from operators
         for operator in operators.iter() {
             let operator = operator.clone();
-
             let res = self
                 .client
-                .post(&format!("{}operator/task", operator.url()))
+                .post(format!("{}operator/task", operator.url()))
                 .header("Content-Type", "application/json")
                 .json(&task)
                 .send()
@@ -255,99 +255,103 @@ impl TaskService {
 
             match res {
                 Ok(response) => {
-                    let body_result = response.text().await;
-
-                    match body_result {
-                        Ok(body) => {
-                            let response_json_result: Result<TaskResponse, serde_json::Error> =
-                                serde_json::from_str(&body);
-                            match response_json_result {
-                                Ok(response_json) => {
-                                    operator_responses.push(response_json);
-                                }
-                                Err(e) => {
-                                    error!(
-                                        "Error parsing JSON response from {}: {:?}",
-                                        operator.url(),
-                                        e
-                                    );
-                                }
-                            }
+                    if let Ok(body) = response.text().await {
+                        let response_json: Result<TaskResponse, _> = serde_json::from_str(&body);
+                        if let Ok(response_json) = response_json {
+                            operator_responses.push((operator.clone(), response_json));
+                        } else {
+                            error!("Error parsing JSON from {}.", operator.url());
                         }
-                        Err(e) => {
-                            error!(
-                                "Error reading response body from {}: {:?}",
-                                operator.url(),
-                                e
-                            );
-                        }
+                    } else {
+                        error!("Error reading response body from {}.", operator.url());
                     }
                 }
-                Err(e) => {
-                    error!("Error sending task to {}: {:?}", operator.url(), e);
-                }
+                Err(e) => error!("Error sending task to {}: {:?}", operator.url(), e),
             }
         }
-
-        info!("op_RES_LEN: {}", operator_responses.len());
 
         let mut verified_responses = Vec::new();
-
-        for response in operator_responses {
-            let is_verified = self.verify_message(&response).await.map_err(|e| {
-                error!("Error verifying message: {:?}", e);
-                TaskError::TaskVerificationFailed
-            })?;
-
-            if is_verified {
+        for (_operator, response) in &operator_responses {
+            let public_key = response.public_key;
+            if self
+                .verify_message(response)
+                .await
+                .map_err(|_| TaskError::TaskVerificationFailed)?
+            {
                 verified_responses.push(response);
-            } else {
-                error!("Task response verification failed.");
+                signing_operators.insert(public_key);
             }
         }
 
-        let mut response_map = HashMap::new();
-
-        let addresses: Vec<Address> = verified_responses
+        let non_signing_public_keys: Vec<G1Point> = operators
             .iter()
-            .map(|r| Ok(r.public_key))
-            .collect::<Result<_, TaskError>>()?;
+            .filter_map(|operator| {
+                if !signing_operators.contains(operator.public_key()) {
+                    operator_responses
+                        .iter()
+                        .find(|(_, response)| response.public_key == *operator.public_key())
+                        .map(|(_, response)| response.bls_pubkey.g1)
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-        let (operator_stakes, total_stake) = self
-            .get_operator_stake_mapping(addresses, Uint::from(0u64))
-            .await?;
+        let mut response_map: HashMap<U256, Vec<G1Point>> = HashMap::new();
+        let mut g2_points = Vec::new();
 
-        let default_stake = Uint::from(0u64);
+        for response in &verified_responses {
+            let response_value: U256 = response.completed_task.response;
 
-        for response in verified_responses.iter() {
-            let response_value = Uint::from(response.completed_task.response);
-            let public_key = response.public_key;
-            let stake = operator_stakes.get(&public_key).unwrap_or(&default_stake);
+            let signature = response.signature;
 
-            *response_map.entry(response_value).or_insert(default_stake) += *stake;
+            g2_points.push(response.bls_pubkey.g2);
+
+            response_map
+                .entry(response_value)
+                .or_default()
+                .push(signature);
         }
 
-        info!("Finished mapping responses to stakes.");
-
-        let most_frequent_response = response_map
+        let (response_value, signatures) = response_map
             .into_iter()
-            .max_by_key(|&(_, stake)| stake)
+            .max_by_key(|(_, sigs)| sigs.len())
             .ok_or(TaskError::TaskVerificationFailed)?;
 
-        if most_frequent_response.1 < total_stake / Uint::from(2u64) {
-            error!("Majority not reached. Expected at least half of total stake.");
+        if signatures.len() <= operators.len() / 2 {
             return Err(TaskError::MajorityNotReached);
         }
 
-        Ok(most_frequent_response.0)
+        let aggregated_signature = signatures
+            .into_iter()
+            .reduce(|acc, sig| self.aggregate_points_g1(acc, sig))
+            .ok_or(TaskError::TaskVerificationFailed)?;
+
+        let aggregated_g2_points = g2_points
+            .into_iter()
+            .reduce(|acc, sig| self.aggregate_points_g2(acc, sig))
+            .ok_or(TaskError::TaskVerificationFailed)?;
+
+        Ok((
+            response_value,
+            non_signing_public_keys,
+            aggregated_g2_points,
+            aggregated_signature,
+        ))
     }
 
     async fn verify_message(&self, task_response: &TaskResponse) -> Result<bool> {
-        let address: Address = task_response.public_key;
-        let signature: Signature = task_response.signature;
-        let message = serde_json::to_string(&task_response.completed_task)?;
-        let recovered_address = signature.recover_address_from_msg(message)?;
-        Ok(recovered_address == address)
+        let encoded_msg = SquareNumberDSS::TaskResponse {
+            response: task_response.completed_task.response,
+        }
+        .abi_encode();
+        let msg_hash = keccak256(&encoded_msg);
+        Ok(verify_signature(
+            &task_response.bls_pubkey.g2,
+            &task_response.signature,
+            msg_hash,
+        )
+        .is_ok())
     }
 
     async fn write_block_number_to_file(&self, file: &str, val: u64) -> Result<()> {

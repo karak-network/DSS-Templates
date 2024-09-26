@@ -38,6 +38,9 @@ pub enum TaskError {
     #[error("Contract call error")]
     ContractCallError,
 
+    #[error("Failed to submit task error: {0}")]
+    SubmitTaskError(String),
+
     #[error("Operator not found")]
     OperatorNotFound,
 

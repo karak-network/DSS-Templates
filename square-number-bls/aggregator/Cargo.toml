@@ -8,6 +8,9 @@ edition = { workspace = true }
 
 [dependencies]
 alloy = { version = "0.2.1", features = ["full"] }
+ark-bn254 = "0.4.0"
+ark-ec = "0.4.2"
+ark-ff = "0.4.2"
 axum = { version = "0.7.5", features = ["macros"] }
 chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15.7"

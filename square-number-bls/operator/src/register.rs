@@ -1,16 +1,20 @@
 use crate::{contract::SquareNumberDSS::SquareNumberDSSInstance, Config};
 use alloy::{
     network::{Ethereum, EthereumWallet},
-    primitives::Address,
+    primitives::{Address, Bytes, FixedBytes, TxHash},
     providers::{
         fillers::{FillProvider, JoinFill, RecommendedFiller, WalletFiller},
         ProviderBuilder, ReqwestProvider,
     },
-    rpc::types::TransactionReceipt,
     transports::http::{reqwest, ReqwestTransport},
 };
 use eyre::Result;
-use karak_rs::contracts::Core::CoreInstance;
+use karak_rs::bls::keypair_signer::Signer;
+use karak_rs::{
+    bls::{keypair_signer::KeypairSigner, registration::OperatorRegistration},
+    contracts::Core::CoreInstance,
+    kms::keypair::bn254::{algebra::g1::G1Point, Keypair},
+};
 use serde::Serialize;
 use tokio::time::{self, Duration};
 use tracing::{error, info};
@@ -34,10 +38,12 @@ pub struct RegistrationService {
     dss_instance: SquareNumberDSSInstance<ReqwestTransport, RecommendedProvider>,
     core_instance: CoreInstance<ReqwestTransport, RecommendedProvider>,
     operator_address: Address,
+    dss_address: Address,
     aggregator_url: Url,
     domain_url: Url,
     reqwest_client: reqwest::Client,
     heartbeat_interval: Duration,
+    bls_keypair: Keypair,
 }
 
 impl RegistrationService {
@@ -46,18 +52,21 @@ impl RegistrationService {
             .with_recommended_fillers()
             .wallet(EthereumWallet::from(config.private_key.clone()))
             .on_http(config.rpc_url);
-        let dss_instance =
-            SquareNumberDSSInstance::new(config.square_number_dss_address, provider.clone());
+        let dss_address = config.square_number_dss_address;
+        let dss_instance = SquareNumberDSSInstance::new(dss_address, provider.clone());
         let core_instance = CoreInstance::new(config.core_address, provider);
         let heartbeat_interval = Duration::from_millis(config.heartbeat);
+        let bls_keypair = config.bls_keypair;
         Ok(Self {
             dss_instance,
             core_instance,
             operator_address: config.private_key.address(),
+            dss_address,
             aggregator_url: config.aggregator_url,
             domain_url: config.domain_url,
             reqwest_client: reqwest::Client::new(),
             heartbeat_interval,
+            bls_keypair,
         })
     }
 
@@ -75,8 +84,7 @@ impl RegistrationService {
                 info!("Operator not registered in DSS. Registering...");
                 match self.register_in_dss().await {
                     Ok(receipt) => {
-                        let tx_hash = receipt.transaction_hash;
-                        info!("operatorService :: register_in_dss :: operator registered successfully in the DSS :: {tx_hash}");
+                        info!("operatorService :: register_in_dss :: operator registered successfully in the DSS :: {receipt}");
                         break;
                     }
                     Err(e) => {
@@ -126,18 +134,42 @@ impl RegistrationService {
             ._0)
     }
 
-    async fn register_in_dss(&self) -> Result<TransactionReceipt> {
+    async fn get_registration_msg_hash(&self) -> FixedBytes<32> {
+        
+        self
+            .dss_instance
+            .REGISTRATION_MESSAGE_HASH()
+            .call()
+            .await
+            .unwrap()
+            ._0
+    }
+
+    async fn register_in_dss(&self) -> Result<TxHash> {
+        let bls_pubkey = karak_rs::kms::keypair::traits::Keypair::public_key(&self.bls_keypair);
+        let msg_hash = self.get_registration_msg_hash().await;
+        let signature = self.sign(&self.bls_keypair.clone(), msg_hash.into())?;
+        let registration = karak_rs::bls::registration::BlsRegistration {
+            g1_pubkey: bls_pubkey.g1,
+            g2_pubkey: bls_pubkey.g2,
+            signature,
+            msg_hash,
+        };
         let receipt = self
             .core_instance
-            .registerOperatorToDSS(*self.dss_instance.address(), "0x".into())
-            .send()
-            .await?
-            .get_receipt()
+            .register_operator_to_dss_with_bls(self.dss_address, &registration)
             .await?;
 
         Ok(receipt)
     }
 
+    fn sign(&self, bls_keypair: &Keypair, msg_hash: Bytes) -> Result<G1Point, eyre::Error> {
+        let mut hash_buffer = [0u8; 32];
+        hash_buffer.copy_from_slice(&msg_hash);
+        let keypair_signer = KeypairSigner::from(bls_keypair.clone());
+        let signature = keypair_signer.sign_message(hash_buffer)?;
+        Ok(signature)
+    }
     async fn is_registered_with_aggregator(&self) -> Result<bool> {
         let url = self
             .aggregator_url

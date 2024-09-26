@@ -6,7 +6,7 @@ use alloy::sol;
 use alloy::transports::http::ReqwestTransport;
 use karak_rs::contracts::Core::CoreInstance;
 use url::Url;
-use SquareNumberDSS::{TaskRequest, TaskResponse};
+use SquareNumberDSS::{G1Point, G2Point, TaskRequest, TaskResponse};
 
 use crate::Config;
 use crate::TaskError;
@@ -63,32 +63,26 @@ impl ContractManager {
         })
     }
 
-    pub async fn fetch_vaults_staked_in_dss(
-        &self,
-        operator: Address,
-        dss_address: Address,
-    ) -> Result<Vec<Address>, TaskError> {
-        let result = self
-            .core_instance
-            .fetchVaultsStakedInDSS(operator, dss_address)
-            .call()
-            .await
-            .map_err(|_| TaskError::ContractCallError)?;
-
-        Ok(result.vaults)
-    }
-
     pub async fn submit_task_response(
         &self,
         dss_task_request: TaskRequest,
         task_response: TaskResponse,
+        non_signing_operators: Vec<G1Point>,
+        agg_pubkey: G2Point,
+        agg_sign: G1Point,
     ) -> Result<(), TaskError> {
         let _ = self
             .dss_instance
-            .submitTaskResponse(dss_task_request, task_response)
+            .submitTaskResponse(
+                dss_task_request,
+                task_response,
+                non_signing_operators,
+                agg_pubkey,
+                agg_sign,
+            )
             .send()
             .await
-            .map_err(|_| TaskError::ContractCallError)?;
+            .map_err(|e| TaskError::SubmitTaskError(e.to_string()))?;
 
         Ok(())
     }

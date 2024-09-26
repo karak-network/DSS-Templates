@@ -26,7 +26,7 @@ contract DeployDSSAndLocal is Script {
     address internal constant SLASHING_HANDLER_PROXY_ADMIN =
         0x70997970C51812dc3A010C7d01b50e0d17dc79C8;
     address internal constant OPERATOR =
-        0x14dC79964da2C08b23698B3D3cc7Ca32193d9955;
+        0xa0Ee7A142d267C1f36714E4a8F75612F20a79720;
     address internal constant AGGREGATOR =
         0x70997970C51812dc3A010C7d01b50e0d17dc79C8;
 
@@ -102,13 +102,12 @@ contract DeployDSSAndLocal is Script {
 
         SquareNumberDSS dss = deployDSS(address(coreProxy));
         console2.log("address of DSS: ", address(dss));
+        console2.log();
 
-        // operatorRegistrationInCore(address(coreProxy), operatorERC20Vault, dss, testERC20);
-        // updateStakeInDSS(coreProxy, operatorERC20Vault, dss);
         vm.stopBroadcast();
 
         string memory contractAddressesJson = string.concat(
-            '{"blockNumber": 0',
+            '{"block_number": 0',
             "}"
         );
 
@@ -144,9 +143,9 @@ contract DeployDSSAndLocal is Script {
             vaultImpl,
             CORE_MANAGER,
             CORE_VETO_COMMITTEE,
-            100000,
-            100000,
-            10000000
+            10000000,
+            10000000,
+            1000000
         );
     }
 
@@ -192,31 +191,5 @@ contract DeployDSSAndLocal is Script {
     function deployDSS(address core) public returns (SquareNumberDSS dss) {
         dss = new SquareNumberDSS(AGGREGATOR, ICore(core));
         dss.registerDSS(50 * 1e18);
-    }
-
-    function operatorRegistrationInCore(
-        address core,
-        address vaultAddress,
-        SquareNumberDSS dss,
-        ERC20Mintable testERC20
-    ) public {
-        testERC20.approve(vaultAddress, 10000);
-        Vault(vaultAddress).deposit(1000, msg.sender);
-        Core(core).registerOperatorToDSS(IDSS(address(dss)), abi.encode(""));
-    }
-
-    function updateStakeInDSS(
-        Core core,
-        address vaultAddress,
-        SquareNumberDSS dss
-    ) public {
-        core.requestUpdateVaultStakeInDSS(
-            Operator.StakeUpdateRequest({
-                vault: vaultAddress,
-                dss: IDSS(address(dss)),
-                toStake: true
-            })
-        );
-        // core.finalizeUpdateVaultStakeInDSS(updatedStake, OPERATOR);
     }
 }
