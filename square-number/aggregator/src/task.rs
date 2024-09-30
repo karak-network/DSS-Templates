@@ -247,7 +247,7 @@ impl TaskService {
 
             let res = self
                 .client
-                .post(&format!("{}operator/task", operator.url()))
+                .post(format!("{}operator/task", operator.url()))
                 .header("Content-Type", "application/json")
                 .json(&task)
                 .send()

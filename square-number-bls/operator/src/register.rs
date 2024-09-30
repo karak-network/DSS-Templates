@@ -135,9 +135,7 @@ impl RegistrationService {
     }
 
     async fn get_registration_msg_hash(&self) -> FixedBytes<32> {
-        
-        self
-            .dss_instance
+        self.dss_instance
             .REGISTRATION_MESSAGE_HASH()
             .call()
             .await

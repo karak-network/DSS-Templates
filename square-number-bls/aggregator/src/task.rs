@@ -6,13 +6,12 @@ use std::{
 };
 
 use alloy::{
-    primitives::{keccak256, Address, Uint, U256},
+    primitives::{keccak256, Address, U256},
     providers::Provider,
     rpc::types::{BlockNumberOrTag, Filter},
     sol_types::{SolEvent, SolValue},
     transports::http::Client,
 };
-use ark_ff::PrimeField;
 use chrono::{DateTime, Utc};
 use eyre::Result;
 use karak_rs::{
@@ -78,33 +77,14 @@ pub struct TaskService {
 
 impl From<G1Point> for SquareNumberDSS::G1Point {
     fn from(karak_point: G1Point) -> Self {
-        let x = karak_point.0.x.into_bigint().0;
-        let y = karak_point.0.y.into_bigint().0;
-
-        let x_uint = Uint::<256, 4>::from(U256::from_limbs(x));
-        let y_uint = Uint::<256, 4>::from(U256::from_limbs(y));
-
-        SquareNumberDSS::G1Point {
-            X: x_uint,
-            Y: y_uint,
-        }
+        let (x, y) = <(U256, U256)>::from(karak_point);
+        SquareNumberDSS::G1Point { X: x, Y: y }
     }
 }
-
 impl From<G2Point> for SquareNumberDSS::G2Point {
     fn from(karak_point: G2Point) -> Self {
-        let x = karak_point.0.x;
-        let y = karak_point.0.y;
-
-        let x0_uint = Uint::<256, 4>::from(U256::from_limbs(x.c0.into_bigint().0));
-        let x1_uint = Uint::<256, 4>::from(U256::from_limbs(x.c1.into_bigint().0));
-        let y0_uint = Uint::<256, 4>::from(U256::from_limbs(y.c0.into_bigint().0));
-        let y1_uint = Uint::<256, 4>::from(U256::from_limbs(y.c1.into_bigint().0));
-
-        SquareNumberDSS::G2Point {
-            X: [x1_uint, x0_uint], // Reversed x coordinates
-            Y: [y1_uint, y0_uint], // Reversed y coordinates
-        }
+        let (x, y) = <([U256; 2usize], [U256; 2usize])>::from(karak_point);
+        SquareNumberDSS::G2Point { X: x, Y: y }
     }
 }
 
@@ -226,14 +206,6 @@ impl TaskService {
         Ok(())
     }
 
-    fn aggregate_points_g1(&self, point_one: G1Point, point_two: G1Point) -> G1Point {
-        point_one + point_two
-    }
-
-    fn aggregate_points_g2(&self, point_one: G2Point, point_two: G2Point) -> G2Point {
-        point_one + point_two
-    }
-
     async fn send_task_to_all_operators_and_aggregate(
         &self,
         task: Task,
@@ -322,15 +294,9 @@ impl TaskService {
             return Err(TaskError::MajorityNotReached);
         }
 
-        let aggregated_signature = signatures
-            .into_iter()
-            .reduce(|acc, sig| self.aggregate_points_g1(acc, sig))
-            .ok_or(TaskError::TaskVerificationFailed)?;
+        let aggregated_signature: G1Point = signatures.into_iter().sum();
 
-        let aggregated_g2_points = g2_points
-            .into_iter()
-            .reduce(|acc, sig| self.aggregate_points_g2(acc, sig))
-            .ok_or(TaskError::TaskVerificationFailed)?;
+        let aggregated_g2_points = g2_points.into_iter().sum();
 
         Ok((
             response_value,
