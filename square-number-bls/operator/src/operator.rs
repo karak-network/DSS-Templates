@@ -89,7 +89,9 @@ impl TaskState {
         let encoded_msg = task_response.abi_encode();
         let msg_hash = keccak256(&encoded_msg);
 
-        Ok(self.bls_signer.sign_message(msg_hash).unwrap())
+        self.bls_signer
+            .sign_message(msg_hash)
+            .map_err(|_| TaskError::SignError)
     }
 }
 

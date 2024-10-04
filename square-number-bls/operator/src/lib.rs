@@ -73,6 +73,12 @@ pub enum TaskError {
     #[error("Signature Conversion error")]
     SignatureConversionError,
 
+    #[error("Object Sign error")]
+    SignError,
+
+    #[error("Registration Hash error")]
+    RegistrationHashError,
+
     #[error("JSON parsing error: {0}")]
     SerdeError(#[from] serde_json::Error),
 

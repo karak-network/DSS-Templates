@@ -1,4 +1,4 @@
-use crate::{contract::SquareNumberDSS::SquareNumberDSSInstance, Config};
+use crate::{contract::SquareNumberDSS::SquareNumberDSSInstance, Config, TaskError};
 use alloy::{
     network::{Ethereum, EthereumWallet},
     primitives::{Address, Bytes, FixedBytes, TxHash},
@@ -134,18 +134,20 @@ impl RegistrationService {
             ._0)
     }
 
-    async fn get_registration_msg_hash(&self) -> FixedBytes<32> {
-        self.dss_instance
+    async fn get_registration_msg_hash(&self) -> Result<FixedBytes<32>, TaskError> {
+        let result = self
+            .dss_instance
             .REGISTRATION_MESSAGE_HASH()
             .call()
             .await
-            .unwrap()
-            ._0
+            .map_err(|_| TaskError::RegistrationHashError)?; // Map the error to your custom error type if needed
+
+        Ok(result._0)
     }
 
     async fn register_in_dss(&self) -> Result<TxHash> {
         let bls_pubkey = karak_rs::kms::keypair::traits::Keypair::public_key(&self.bls_keypair);
-        let msg_hash = self.get_registration_msg_hash().await;
+        let msg_hash = self.get_registration_msg_hash().await?;
         let signature = self.sign(&self.bls_keypair.clone(), msg_hash.into())?;
         let registration = karak_rs::bls::registration::BlsRegistration {
             g1_pubkey: bls_pubkey.g1,
